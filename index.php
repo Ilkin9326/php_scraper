@@ -23,8 +23,8 @@ use Symfony\Component\DomCrawler\Crawler;
     <title>Scrape serps</title>
 </head>
 <body>
-<form action="http://localhost/php_goutte/" method="post">
-    <div class="input_div"><input type="text" name="wv[0]" value="" data-error="1" maxlength="250"
+<form action="" method="post">
+    <div class="input_div"><input type="text" name="txtInput" value="" data-error="1" maxlength="250"
                               aria-describedby="error_1"
            class="input_text" id="wordSearchTerms1" autofocus="autofocus" placeholder="Search for words in trade marks, owner names or trade mark numbers">
 
@@ -41,24 +41,23 @@ use Symfony\Component\DomCrawler\Crawler;
 
 <?
 
-if (isset($_POST["wv"]) && $_POST["wv"] != "") {
+if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
     $term = $_POST["wv"][0];
+    echo $term;
     ini_set('max_execution_time', '500');
     $client = new Client(HttpClient::create(['timeout' => 500]));
     $crawler1 = $client->request('GET', 'https://search.ipaustralia.gov.au/trademarks/search/quick/result?q=' . $term);
     $count = $crawler1->filter('h2')->each(function ($node) {
-        echo "<br>Total result is: ".$node->text() ?? null;
-        return ceil($node->text() ?? null /100);
+        "<br>Total result is: ".$node->text() ?? null;
+        return ceil(($node->text() ?? null) /100);
     });
-    echo "count0: ".$count[0];
+
     for ($i = 0; $i < $count[0]; $i++) {
         $crawler2 = $client->request('GET', 'https://search.ipaustralia.gov.au/trademarks/search/quick/result?q='.$term.'&p='.$i);
 
         $result = $crawler2->filter('.js-mark-record')->each(function ($node) {
 
-            echo '<pre>';
-            print_r($node->text());
-            /*$number = $node->filter('.qa-tm-number')->each(function ($a) {
+            $number = $node->filter('.qa-tm-number')->each(function ($a) {
                 return  $a->text();
             });
 
@@ -92,16 +91,15 @@ if (isset($_POST["wv"]) && $_POST["wv"] != "") {
                 'details_page_url' => "https://search.ipaustralia.gov.au"."".$details_page_url[0] ?? null
             ];
 
-            return $items;*/
+            return $items;
         });
     }
     echo '<pre>';
     print_r($result ?? null);
 
-
-
-
-
+}else{
+    echo "Please fill out this field";
+    exit();
 }
 
 ?>
