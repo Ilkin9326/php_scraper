@@ -40,6 +40,7 @@ use Symfony\Component\HttpClient\HttpClient;
 
 <?
 
+//Belli url-e post atib redirect olunan linki goturek.Proses basladi
 $data_array = array(
     '_csrf' => 'f9c22ddf-f3ed-4e75-b1c6-3c7024a708f9',
     'wv[0]' => $_POST["txtInput"]
@@ -75,6 +76,7 @@ $resp = curl_exec($ch);
 $info = curl_getinfo($ch);
 $getUrl = $info["url"];
 curl_close($ch);
+//Url goturuldu, Proses bitdi.
 
 if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
     $term = $_POST["txtInput"];
@@ -96,8 +98,8 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
     if($totalres > 0){
         echo 'Total result is: <b>'.$totalres.'</b>';
         $items_list = array();
-        $ceilVal = $totalres>100 ?  ceil($totalres/100) : $totalres;
-
+        $ceilVal =  ceil($totalres/100);
+        $totalResult = array();
         for ($i = 0; $i < $ceilVal; $i++) {
 
             $crawler2 = $client->request('GET', $getUrl.'&p='.$i);
@@ -143,18 +145,17 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
                     'status' => $status,
                     'details_page_url' => "https://search.ipaustralia.gov.au"."".$details_page_url ?? null
                 );
-                //bu hissede butun neticeler gorsenir. meselen $details_page_url tekce echo elesem grunur ama arrayda gorsenmir.
+
                 return $items;
             });
-
+            array_push($totalResult, $result);
 
         }
-        echo '<pre>';
-        print_r($result);
-
+        echo "<pre>";
+        print_r($totalResult);
 
     }else{
-        echo "Empty list";
+        echo "0 results";
         exit();
     }
 
