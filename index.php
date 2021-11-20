@@ -146,10 +146,10 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
                 return $items;
             });
 
-            array_push($items_list, $result);
+
         }
         echo '<pre>';
-        print_r($items_list);
+        print_r($result);
 
 
     }else{
