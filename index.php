@@ -143,6 +143,7 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
                     'status' => $status,
                     'details_page_url' => "https://search.ipaustralia.gov.au"."".$details_page_url ?? null
                 );
+                //bu hissede butun neticeler gorsenir. meselen $details_page_url tekce echo elesem grunur ama arrayda gorsenmir.
                 return $items;
             });
 
