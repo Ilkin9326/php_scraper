@@ -1,5 +1,4 @@
 <?
-
 require __DIR__ . "/vendor/autoload.php";
 require_once("vendor/fabpot/goutte/Goutte/Client.php");
 
