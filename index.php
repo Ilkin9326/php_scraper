@@ -3,7 +3,6 @@ require __DIR__ . "/vendor/autoload.php";
 require_once("vendor/fabpot/goutte/Goutte/Client.php");
 
 use Goutte\Client;
-use Symfony\Component\HttpClient\HttpClient;
 ?>
     <style>
         .input_text {
@@ -42,64 +41,60 @@ use Symfony\Component\HttpClient\HttpClient;
 
 
 <?
+$ch = curl_init();
 if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
-    ini_set('max_execution_time', '500');
+    ini_set('max_execution_time', '8000');
+
     $client = new Client();
     $postField = htmlspecialchars(trim($_POST["txtInput"]));
 
     //get csrf token
     $csrfUrl = "https://search.ipaustralia.gov.au/trademarks/search/advanced";
-    $csrfToken = getCsrfToken($csrfUrl);
+    $csrfToken = getCsrfToken($csrfUrl, $ch);
     $_csrf = preg_split('/(=|;)/', $csrfToken['set-cookie'][4], -1, PREG_SPLIT_NO_EMPTY);
+
     //Get redirect url from post url
     $postUrl = "https://search.ipaustralia.gov.au/trademarks/search/doSearch";
-    $getUrl = getRedirectionUrl($postUrl, $_csrf[1], $postField);
-    //Url goturuldu, Proses bitdi.
-    //search page define
-
-
-    $resultUrl = "https://search.ipaustralia.gov.au/trademarks/search/result".substr($getUrl, strpos($getUrl, '?s='));
+    $getUrl = getRedirectionUrl($postUrl, $_csrf[1], $postField, $ch);
+    $resultUrl = "https://search.ipaustralia.gov.au/trademarks/search/result" . substr($getUrl, strpos($getUrl, '?s='));
     $crawler1 = $client->request('GET', $resultUrl);
+
     //Get total result from parser html.
     $count = $crawler1->filter('h2')->first();
-
     if ($count->count() > 0) {
         $totalres = $count->text();
     } else $totalres = 0;
-    //Each element we get result
-    //print_r($count);
+
+    //for each element we get result
     if ($totalres > 0) {
         echo 'Total result is: <b>' . $totalres . '</b>';
         $items_list = array();
-        $ceilVal = ceil($totalres / 100);
+        $ceilVal = ceil(str_replace(',', '', $totalres) / 100);
         $totalResult = array();
         for ($i = 0; $i < $ceilVal; $i++) {
             $crawler2 = $client->request('GET', $resultUrl . '&p=' . $i);
             $result = $crawler2->filter('.js-mark-record')->each(function ($node) {
+                //number
                 $number = $node->filter('.qa-tm-number')->first();
-                if ($number->count() > 0) {
-                    $number = $number->text();
-                }
-                //getting logo url, some url is null, that's why i used try catch for null exception
+                if ($number->count() > 0) $number = $number->text();
+                //logo url, some url is null, that's why i used try catch for null exception
                 try {
                     $logoPathUrl = $node->filter('img')->attr('src');
                     $logo_url = "<a href=$logoPathUrl target='_blank'>$logoPathUrl</a>";
                 } catch (Exception $e) {
                     $logo_url = "null";
                 }
+                //name
                 $name = $node->filter('.trademark')->first();
                 if ($name->count() > 0) $name = empty($name->text()) ? "null" : $name->text();
-
+                //class
                 $class = $node->filter('.classes')->first();
-                if ($class->count() > 0) {
-                    $class = $class->text();
-                }
+                if ($class->count() > 0) $class = $class->text();
+                //status
                 $status = $node->filter('.mark-line .status')->first();
-                if ($status->count() > 0) {
-                    $status = $status->text();
-                }
+                if ($status->count() > 0) $status = $status->text();
+                //page url
                 $details_page_url = $node->filter('a')->attr('href');
-
                 $url_source = "https://search.ipaustralia.gov.au" . "" . $details_page_url ?? null;
                 $url_source_link = "<a href=$url_source target='_blank'>$url_source</a>";
                 $items = array(
@@ -118,7 +113,7 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
         print_r($totalResult);
     } else {
         $res = [
-                'message' => $crawler1->filter('.no-content p')->first()->text()
+            'message' => $crawler1->filter('.no-content p')->first()->text()
         ];
         print_r($res);
         return;
@@ -127,9 +122,11 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
     echo "Please fill out this field";
     exit();
 }
-function getCsrfToken($url)
+
+//get csrf token from url
+function getCsrfToken($url, $ch)
 {
-    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_VERBOSE, 1);
     curl_setopt($ch, CURLOPT_HEADER, 1);
@@ -156,7 +153,8 @@ function getCsrfToken($url)
     return $headers;
 }
 
-function getRedirectionUrl($url, $csrfToken, $postField)
+//get redirection url
+function getRedirectionUrl($url, $csrfToken, $postField, $ch)
 {
     $data_array = array(
         '_csrf' => $csrfToken,
@@ -173,7 +171,7 @@ function getRedirectionUrl($url, $csrfToken, $postField)
         'Content-Type: application/x-www-form-urlencoded; charset=utf-8',
         'X-MicrosoftAjax: Delta=true'
     ];
-    $ch = curl_init();
+
     $data = http_build_query($data_array);
     $cookiePath = getcwd() . "\cookies.txt";
     curl_setopt($ch, CURLOPT_URL, $url);
