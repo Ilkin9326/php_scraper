@@ -3,6 +3,7 @@ require __DIR__ . "/vendor/autoload.php";
 require_once("vendor/fabpot/goutte/Goutte/Client.php");
 
 use Goutte\Client;
+
 ?>
     <style>
         .input_text {
@@ -50,12 +51,15 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
 
     //get csrf token
     $csrfUrl = "https://search.ipaustralia.gov.au/trademarks/search/advanced";
-    $csrfToken = getCsrfToken($csrfUrl, $ch);
-    $_csrf = preg_split('/(=|;)/', $csrfToken['set-cookie'][4], -1, PREG_SPLIT_NO_EMPTY);
+
+    $responseHeaders = getResponseHeaders($csrfUrl, $ch);
+
+    $csrfToken = fetchCsrfTokenFromHeaders($responseHeaders);
+
 
     //Get redirect url from post url
     $postUrl = "https://search.ipaustralia.gov.au/trademarks/search/doSearch";
-    $getUrl = getRedirectionUrl($postUrl, $_csrf[1], $postField, $ch);
+    $getUrl = getRedirectionUrl($postUrl, $csrfToken, $postField, $ch);
     $resultUrl = "https://search.ipaustralia.gov.au/trademarks/search/result" . substr($getUrl, strpos($getUrl, '?s='));
     $crawler1 = $client->request('GET', $resultUrl);
 
@@ -68,7 +72,6 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
     //for each element we get result
     if ($totalres > 0) {
         echo 'Total result is: <b>' . $totalres . '</b>';
-        $items_list = array();
         $ceilVal = ceil(str_replace(',', '', $totalres) / 100);
         $totalResult = array();
         for ($i = 0; $i < $ceilVal; $i++) {
@@ -107,15 +110,18 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
                 );
                 return $items;
             });
-            array_push($totalResult, $result);
+            $totalResult = array_merge($totalResult, $result);
         }
         echo "<pre>";
-        print_r($totalResult);
+        echo json_encode($totalResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+        echo "</pre>";
     } else {
         $res = [
             'message' => $crawler1->filter('.no-content p')->first()->text()
         ];
-        print_r($res);
+        echo "<pre>";
+        echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        echo "</pre>";
         return;
     }
 } else {
@@ -123,8 +129,8 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
     exit();
 }
 
-//get csrf token from url
-function getCsrfToken($url, $ch)
+//get headers from url
+function getResponseHeaders($url, $ch)
 {
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -151,6 +157,27 @@ function getCsrfToken($url, $ch)
     curl_setopt($ch, CURLOPT_COOKIEJAR, $tmpfname);
     $resp = curl_exec($ch);
     return $headers;
+}
+
+//get csrf token from header
+function fetchCsrfTokenFromHeaders($headers)
+{
+    if (!isset($headers['set-cookie'])) return "";
+
+    $searchedKey = "XSRF-TOKEN";
+
+    foreach ($headers['set-cookie'] as $key => $cookie) {
+        if (strlen($cookie) >= strlen($searchedKey) && substr($cookie, 0, strlen($searchedKey)) == $searchedKey) {
+
+            $startIndex = strpos($cookie, "=");
+            $stopIndex = strpos($cookie, ";");
+
+            if ($startIndex === false || $stopIndex === false) return "";
+
+            return substr($cookie, $startIndex + 1, $stopIndex - $startIndex - 1);
+        }
+    }
+    return "";
 }
 
 //get redirection url
