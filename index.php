@@ -42,59 +42,30 @@ use Symfony\Component\HttpClient\HttpClient;
 
 
 <?
-
 if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
     ini_set('max_execution_time', '500');
-    $client = new Client(HttpClient::create(['timeout' => 500]));
+    $client = new Client();
     $postField = htmlspecialchars(trim($_POST["txtInput"]));
-    $url = "https://search.ipaustralia.gov.au/trademarks/search/doSearch";
+
     //get csrf token
     $csrfUrl = "https://search.ipaustralia.gov.au/trademarks/search/advanced";
     $csrfToken = getCsrfToken($csrfUrl);
     $_csrf = preg_split('/(=|;)/', $csrfToken['set-cookie'][4], -1, PREG_SPLIT_NO_EMPTY);
-
-    $data_array = array(
-        '_csrf' => $_csrf[1],
-        'wv[0]' => $postField
-    );
-
-    $data = http_build_query($data_array);
-    $headers = [
-        'X-Apple-Tz: 0',
-        'X-Apple-Store-Front: 143444,12',
-        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Encoding: gzip, deflate',
-        'Accept-Language: en-US,en;q=0.5',
-        'Cache-Control: no-cache',
-        'Content-Type: application/x-www-form-urlencoded; charset=utf-8',
-        'X-MicrosoftAjax: Delta=true'
-        //'cookie: SESSIONTOKEN=eyJhbGciOiJIUzUxMiJ9
-        //.eyJqdGkiOiIzNDIwNjk5Ni01YmMzLTQxOGEtODcyZC0xNDNmOGQ5YzM4YTMiLCJzdWIiOiJkNmMzOTcyNC1lODNjLTQ5NDUtYjgxNi02NWE0YjYwZGU2OGMiLCJpYXQiOjE2Mzc4MTQ4MjMsImV4cCI6MTYzNzg0MzYyM30.dnGvG49qhlKzR1cXxHVF83cCov-PTjYjTYMahwbaDKe8380u-Wsew7NFDkvjrXYUqinzrf6ar2dN9t8o2OB8Ow; XSRF-TOKEN=76a8ca47-d7ae-4c60-93e2-5a972fe53f82; nmstat=724ca382-8f27-7ba0-947c-f515e9dbf8ae; _ga=GA1.3.807509456.1637581055; _gid=GA1.3.222486322.1637581055; _gat=1; AWSALB=wkDAzROABhP0PHPMeebkk9SwIrTosZzGT2M9HpnuWkERTa+c7+v7quQHfnN/Nvy7yJqGuB/O3QnAknh8Nl4hYM/KCcEzyBXNGmq+a3Rx8D9ZZgKiCyBR1JSIsbMX; AWSALBCORS=wkDAzROABhP0PHPMeebkk9SwIrTosZzGT2M9HpnuWkERTa+c7+v7quQHfnN/Nvy7yJqGuB/O3QnAknh8Nl4hYM/KCcEzyBXNGmq+a3Rx8D9ZZgKiCyBR1JSIsbMX'
-    ];
-    $ch = curl_init();
-    $data = http_build_query($data_array);
-    $cookiePath = getcwd()."\cookies.txt";
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_VERBOSE, true);
-    curl_setopt($ch, CURLOPT_COOKIEFILE, $cookiePath);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_HEADER, 1);
-    $resp = curl_exec($ch);
-    $info = curl_getinfo($ch);
-    $getUrl = $info["url"];
-    curl_close($ch);
+    //Get redirect url from post url
+    $postUrl = "https://search.ipaustralia.gov.au/trademarks/search/doSearch";
+    $getUrl = getRedirectionUrl($postUrl, $_csrf[1], $postField);
     //Url goturuldu, Proses bitdi.
     //search page define
-    $crawler1 = $client->request('GET', $getUrl);
+
+
+    $resultUrl = "https://search.ipaustralia.gov.au/trademarks/search/result".substr($getUrl, strpos($getUrl, '?s='));
+    $crawler1 = $client->request('GET', $resultUrl);
     //Get total result from parser html.
     $count = $crawler1->filter('h2')->first();
+
     if ($count->count() > 0) {
         $totalres = $count->text();
-    }else $totalres=0;
+    } else $totalres = 0;
     //Each element we get result
     //print_r($count);
     if ($totalres > 0) {
@@ -103,7 +74,7 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
         $ceilVal = ceil($totalres / 100);
         $totalResult = array();
         for ($i = 0; $i < $ceilVal; $i++) {
-            $crawler2 = $client->request('GET', $getUrl . '&p=' . $i);
+            $crawler2 = $client->request('GET', $resultUrl . '&p=' . $i);
             $result = $crawler2->filter('.js-mark-record')->each(function ($node) {
                 $number = $node->filter('.qa-tm-number')->first();
                 if ($number->count() > 0) {
@@ -111,14 +82,14 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
                 }
                 //getting logo url, some url is null, that's why i used try catch for null exception
                 try {
-                    $logo_url = $node->filter('img')->attr('src');
+                    $logoPathUrl = $node->filter('img')->attr('src');
+                    $logo_url = "<a href=$logoPathUrl target='_blank'>$logoPathUrl</a>";
                 } catch (Exception $e) {
-                    $logo_url = "src is null";
+                    $logo_url = "null";
                 }
                 $name = $node->filter('.trademark')->first();
-                if ($name->count() > 0) {
-                    $name = $name->text();
-                }
+                if ($name->count() > 0) $name = empty($name->text()) ? "null" : $name->text();
+
                 $class = $node->filter('.classes')->first();
                 if ($class->count() > 0) {
                     $class = $class->text();
@@ -128,9 +99,9 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
                     $status = $status->text();
                 }
                 $details_page_url = $node->filter('a')->attr('href');
-                $url_source = "https://search.ipaustralia.gov.au" . "" . $details_page_url ?? null;
-                $url_source_link = "<a href='https://search.ipaustralia.gov.au' . $details_page_url>$url_source</a>";
 
+                $url_source = "https://search.ipaustralia.gov.au" . "" . $details_page_url ?? null;
+                $url_source_link = "<a href=$url_source target='_blank'>$url_source</a>";
                 $items = array(
                     'number' => $number,
                     'logo_url' => $logo_url,
@@ -146,25 +117,25 @@ if (isset($_POST["txtInput"]) && $_POST["txtInput"] != "") {
         echo "<pre>";
         print_r($totalResult);
     } else {
-        echo "0 results";
-        exit();
+        $res = [
+                'message' => $crawler1->filter('.no-content p')->first()->text()
+        ];
+        print_r($res);
+        return;
     }
 } else {
     echo "Please fill out this field";
     exit();
 }
-
 function getCsrfToken($url)
 {
     $ch = curl_init($url);
-
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_VERBOSE, 1);
     curl_setopt($ch, CURLOPT_HEADER, 1);
     curl_setopt($ch, CURLOPT_NOBODY, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($curl, $header) use (&$headers) {
-
         $len = strlen($header);
         $header = explode(':', $header, 2);
         if (count($header) < 2) { // ignore invalid headers
@@ -176,18 +147,49 @@ function getCsrfToken($url)
         } else {
             $headers[$name][] = trim($header[1]);
         }
-
         return $len;
-
     });
-
-    $tmpfname = getcwd()."\cookies.txt";
+    $tmpfname = getcwd() . "\cookies.txt";
     curl_setopt($ch, CURLOPT_COOKIESESSION, true);
     curl_setopt($ch, CURLOPT_COOKIEJAR, $tmpfname);
     $resp = curl_exec($ch);
-
     return $headers;
+}
 
+function getRedirectionUrl($url, $csrfToken, $postField)
+{
+    $data_array = array(
+        '_csrf' => $csrfToken,
+        'wv[0]' => $postField
+    );
+    $data = http_build_query($data_array);
+    $headers = [
+        'X-Apple-Tz: 0',
+        'X-Apple-Store-Front: 143444,12',
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Encoding: gzip, deflate',
+        'Accept-Language: en-US,en;q=0.5',
+        'Cache-Control: no-cache',
+        'Content-Type: application/x-www-form-urlencoded; charset=utf-8',
+        'X-MicrosoftAjax: Delta=true'
+    ];
+    $ch = curl_init();
+    $data = http_build_query($data_array);
+    $cookiePath = getcwd() . "\cookies.txt";
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_VERBOSE, true);
+    curl_setopt($ch, CURLOPT_COOKIEFILE, $cookiePath);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_HEADER, 1);
+    $resp = curl_exec($ch);
+    $info = curl_getinfo($ch);
+    $getUrl = $info["url"];
+    curl_close($ch);
+    return $getUrl;
 }
 
 ?>
