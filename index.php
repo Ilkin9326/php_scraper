@@ -159,6 +159,7 @@ function getResponseHeaders($url, $ch)
     return $headers;
 }
 
+//get csrf token from header
 function fetchCsrfTokenFromHeaders($headers)
 {
     if (!isset($headers['set-cookie'])) return "";
